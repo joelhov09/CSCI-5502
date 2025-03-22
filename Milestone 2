@@ -1,0 +1,331 @@
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+import json
+import turtle
+import urllib.request
+import time
+import webbrowser
+import geocoder
+import csv
+
+import requests
+import json
+import csv
+
+url = "https://services.arcgis.com/xOi1kZaI0eWDREZv/arcgis/rest/services/NTAD_Intermodal_Passenger_Connectivity_Database/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson"
+
+response = requests.get(url)
+data = response.json()
+
+features = data.get("features", [])
+
+if features:
+    field_names = list(features[0]["properties"].keys())
+else:
+    field_names = []
+
+csv_filename = "mile2.csv"
+with open(csv_filename, mode="w", newline="", encoding="utf-8") as csv_file:
+    writer = csv.DictWriter(csv_file, fieldnames=field_names)
+    writer.writeheader()
+    for feature in features:
+        writer.writerow(feature["properties"])
+
+df1=pd.read_csv("mile2.csv")
+df1.head()
+
+print(df1.isnull().sum())
+
+columns_to_drop = ['NEAR_ID_3', 'AIR_CODE2', 'NEAR_ID_2', 'FERRY_CODE', 'AIR_CODE', 'AMTRAKCODE', 'NEAR_ID_1', 'RAIL_ID', 'BIKE_ID', 'WEBSITE', 'SOURCE', 'NOTES', 'CBSA_CODE', 'CBSA_TYPE']
+df_cleaned = df.drop(columns=columns_to_drop)
+print(df_cleaned.isnull().sum())
+
+categorical_cols = ["BIKE_SYS", "ADDRESS", "FAC_NAME", "METRO_AREA"]
+df_cleaned[categorical_cols] = df_cleaned[categorical_cols].fillna("Unknown")
+print(df_cleaned.isnull().sum())
+
+grouped_by_city = df.groupby("CITY").agg({
+    "FAC_ID": "count",  # Total number of facilities
+    "FAC_TYPE": "nunique",  # Number of unique facility types
+    "MODE_BUS": "sum",  # Total facilities with bus service
+    "MODE_AIR": "sum",  # Total facilities with air service
+    "MODE_RAIL": "sum",  # Total facilities with rail service
+    "MODE_FERRY": "sum",  # Total facilities with ferry service
+    "MODE_BIKE": "sum",  # Total facilities with bike service
+    "BIKE_SHARE": "sum"  # Total facilities with bike share
+}).reset_index()
+
+pd.DataFrame(grouped_by_city.rename(columns={"FAC_ID": "Total_Facilities"}, inplace=True))
+
+grouped_by_city
+
+grouped_by_city.sort_values("Total_Facilities", ascending=False)
+grouped_by_city.loc[grouped_by_city['CITY'] == 'Denver']
+
+grouped_by_state = df.groupby("STATE").agg({
+    "FAC_ID": "count",  # Total number of facilities
+    "FAC_TYPE": "nunique",  # Number of unique facility types
+    "MODE_BUS": "sum",  # Total facilities with bus service
+    "MODE_AIR": "sum",  # Total facilities with air service
+    "MODE_RAIL": "sum",  # Total facilities with rail service
+    "MODE_FERRY": "sum",  # Total facilities with ferry service
+    "MODE_BIKE": "sum",  # Total facilities with bike service
+    "BIKE_SHARE": "sum"  # Total facilities with bike share
+}).reset_index()
+
+pd.DataFrame(grouped_by_state.rename(columns={"FAC_ID": "Total_Facilities"}, inplace=True))
+
+grouped_by_state.sort_values("Total_Facilities", ascending=False)
+
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+url = 'https://www.eia.gov/state/rankings/'
+response = requests.get(url)
+soup = BeautifulSoup(response.content, 'html.parser')
+tables = soup.find('table')
+print(tables)
+
+
+table = soup.find('table', {'class': 'L2_toggle_table'})
+print(table)
+
+import requests
+
+url = 'https://www.eia.gov/state/'
+response = requests.get(url)
+if response.status_code == 200:
+    html_content = response.text
+else:
+    print(f"Failed to retrieve the webpage. Status code: {response.status_code}")
+html_content
+
+import pandas as pd
+
+tables = pd.read_html(html_content)
+for i, table in enumerate(tables):
+    print(f"Table {i}:")
+    print(table.head())  # Display the first few rows of each table
+tables
+
+gas_df = pd.read_csv('SelectedStateRankingsData.csv')
+gas_df.head()
+
+gas_df.rename(columns={"State": "STATE"}, inplace=True)
+merged_df = pd.merge(gas_df, grouped_by_state, on='STATE', how='inner')
+merged_df.drop(columns=['Federal offshore production is not included in the Production Shares.'], inplace=True)
+
+merged_df.head()
+
+merged_df.describe()
+
+df11=grouped_by_state.sort_values("Total_Facilities", ascending=False)
+df11.head()
+
+# @title FAC_TYPE
+
+from matplotlib import pyplot as plt
+df11['BIKE_SHARE'].plot(kind='hist', bins=20, title='BIKE_SHARE')
+plt.gca().spines[['top', 'right',]].set_visible(False)
+
+merged_df.head()
+
+# @title Expenditures per Capita, Rank vs Production, U.S. Share
+
+from matplotlib import pyplot as plt
+import seaborn as sns
+def _plot_series(series, series_name, series_index=0):
+  palette = list(sns.palettes.mpl_palette('Dark2'))
+  xs = series['Expenditures per Capita, Rank']
+  ys = series['Production, U.S. Share']
+  
+  plt.plot(xs, ys, label=series_name, color=palette[series_index % len(palette)])
+
+fig, ax = plt.subplots(figsize=(10, 5.2), layout='constrained')
+df_sorted = merged_df.sort_values('Expenditures per Capita, Rank', ascending=True)
+_plot_series(df_sorted, '')
+sns.despine(fig=fig, ax=ax)
+plt.xlabel('Expenditures per Capita, Rank')
+_ = plt.ylabel('Production, U.S. Share')
+
+# @title Expenditures per Capita, Rank vs Consumption per Capita, Million Btu
+
+from matplotlib import pyplot as plt
+import seaborn as sns
+def _plot_series(series, series_name, series_index=0):
+  palette = list(sns.palettes.mpl_palette('Dark2'))
+  xs = series['Expenditures per Capita, Rank']
+  ys = series['Consumption per Capita, Million Btu']
+  
+  plt.plot(xs, ys, label=series_name, color=palette[series_index % len(palette)])
+
+fig, ax = plt.subplots(figsize=(10, 5.2), layout='constrained')
+df_sorted = merged_df.sort_values('Expenditures per Capita, Rank', ascending=True)
+_plot_series(df_sorted, '')
+sns.despine(fig=fig, ax=ax)
+plt.xlabel('Expenditures per Capita, Rank')
+_ = plt.ylabel('Consumption per Capita, Million Btu')
+
+# @title Consumption per Capita, Million Btu
+
+from matplotlib import pyplot as plt
+merged_df['Consumption per Capita, Million Btu'].plot(kind='line', figsize=(8, 4), title='Consumption per Capita, Million Btu')
+plt.gca().spines[['top', 'right']].set_visible(False)
+
+# @title Production, Rank
+
+from matplotlib import pyplot as plt
+merged_df['Production, Rank'].plot(kind='line', figsize=(8, 4), title='Production, Rank')
+plt.gca().spines[['top', 'right']].set_visible(False)
+
+# @title Production, U.S. Share vs Production, Rank
+
+from matplotlib import pyplot as plt
+merged_df.plot(kind='scatter', x='Production, U.S. Share', y='Production, Rank', s=32, alpha=.8)
+plt.gca().spines[['top', 'right',]].set_visible(False)
+
+# @title Expenditures per Capita, Rank vs Production, Rank
+
+from matplotlib import pyplot as plt
+import seaborn as sns
+def _plot_series(series, series_name, series_index=0):
+  palette = list(sns.palettes.mpl_palette('Dark2'))
+  xs = series['Expenditures per Capita, Rank']
+  ys = series['Production, Rank']
+  
+  plt.plot(xs, ys, label=series_name, color=palette[series_index % len(palette)])
+
+fig, ax = plt.subplots(figsize=(10, 5.2), layout='constrained')
+df_sorted = merged_df.sort_values('Expenditures per Capita, Rank', ascending=True)
+_plot_series(df_sorted, '')
+sns.despine(fig=fig, ax=ax)
+plt.xlabel('Expenditures per Capita, Rank')
+_ = plt.ylabel('Production, Rank')
+
+# @title Consumption per Capita, Rank
+
+from matplotlib import pyplot as plt
+merged_df['Consumption per Capita, Rank'].plot(kind='line', figsize=(8, 4), title='Consumption per Capita, Rank')
+plt.gca().spines[['top', 'right']].set_visible(False)
+
+# @title Consumption per Capita, Rank vs Expenditures per Capita, Dollars
+
+from matplotlib import pyplot as plt
+merged_df.plot(kind='scatter', x='Consumption per Capita, Rank', y='Expenditures per Capita, Dollars', s=32, alpha=.8)
+plt.gca().spines[['top', 'right',]].set_visible(False)
+
+# @title Production, Rank vs Consumption per Capita, Million Btu
+
+from matplotlib import pyplot as plt
+merged_df.plot(kind='scatter', x='Production, Rank', y='Consumption per Capita, Million Btu', s=32, alpha=.8)
+plt.gca().spines[['top', 'right',]].set_visible(False)
+
+
+
+# @title Consumption per Capita, Rank
+
+from matplotlib import pyplot as plt
+merged_df['Consumption per Capita, Rank'].plot(kind='hist', bins=20, title='Consumption per Capita, Rank')
+plt.gca().spines[['top', 'right',]].set_visible(False)
+
+
+
+# @title Consumption per Capita, Million Btu
+
+from matplotlib import pyplot as plt
+merged_df['Consumption per Capita, Million Btu'].plot(kind='hist', bins=20, title='Consumption per Capita, Million Btu')
+plt.gca().spines[['top', 'right',]].set_visible(False)
+
+# @title Production, Rank
+
+from matplotlib import pyplot as plt
+merged_df['Production, Rank'].plot(kind='hist', bins=20, title='Production, Rank')
+plt.gca().spines[['top', 'right',]].set_visible(False)
+
+
+from matplotlib import pyplot as plt
+merged_df['Production, U.S. Share'].plot(kind='hist', bins=20, title='Production, U.S. Share')
+plt.gca().spines[['top', 'right',]].set_visible(False)
+
+import requests
+import pandas as pd
+
+API_KEY = "wULUfwS3znEy2XmIoHi4aRUbktsUslZaVXOVpRrr"
+
+SERIES_ID = "TOTAL.CO2-TOT-US.A"  
+url = f"https://api.eia.gov/v2/co2-emissions/co2-emissions-aggregates/data/?api_key={API_KEY}&start=2022&end=2022&length=5000"
+
+response = requests.get(url)
+data = response.json()
+        
+        
+print(data)
+
+data = response.json()
+if "response" in data and "data" in data["response"]:
+        emissions_data = data["response"]["data"]
+        
+        df = pd.DataFrame(emissions_data)
+        
+        df.to_csv("co2_emissions.csv", index=False)
+        print("CSV file saved successfully as 'co2_emissions.csv'")
+  
+
+newdf = pd.read_csv('co2_emissions.csv')
+newdf.head()
+
+category_counts = newdf['fuel-name'].value_counts()
+
+
+# Plot the frequency
+plt.figure(figsize=(8, 5))
+category_counts.plot(kind='bar', color=['blue', 'green', 'orange', 'pink', 'red', 'purple'])
+plt.xlabel('Sector Name (shortcode)')
+plt.ylabel('Frequency')
+plt.title('Frequency of Sector Names')
+plt.xticks(rotation=0)
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+
+# Show the plot
+plt.show()
+
+category_counts1 = newdf['stateId'].value_counts()
+
+
+# Plot the frequency
+plt.figure(figsize=(8, 5))
+category_counts1.plot(kind='bar', color=['blue', 'green', 'orange', 'pink', 'red', 'purple'])
+plt.xlabel('States')
+plt.ylabel('Frequency')
+plt.title('Frequency of States')
+plt.xticks(rotation=0)
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+
+# Show the plot
+plt.show()
+
+category_counts1
+
+merged_df.head()
+
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+data = pd.DataFrame(merged_df, columns=['Production, U.S. Share', 'Consumption per Capita, Million Btu', 'Expenditures per Capita, Dollars', 'Total_Facilities'])
+
+corr_matrix = data.corr()
+
+# Plot the heatmap
+plt.figure(figsize=(8, 6))
+sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', fmt=".2f", linewidths=0.5)
+plt.title("Correlation Matrix Heatmap")
+plt.show()
+
+merged_df.head()
+merged_df.to_csv('postmerge.csv')
+
+newdf.head()
+newdf.to_csv('postmerge2.csv')
